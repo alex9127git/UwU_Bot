@@ -20,9 +20,14 @@ async def on_message(message):
     if message.author == client.user:
         return
 
-    if message.content == "ping":
+    if message.content.lower() == "ping":
         await message.channel.send(
-            'pong' if random.randint(1, 5) < 5 else "в жопу себе свой пинг засунь"
+            'pong' if random.randint(1, 5) < 5 else "в жопу себе свой ping засунь"
+        )
+
+    if message.content.lower() == "пинг":
+        await message.channel.send(
+            'понг' if random.randint(1, 5) < 5 else "в жопу себе свой пинг засунь"
         )
 
 client.run(token)
