@@ -95,7 +95,6 @@ async def on_message(message):
                                            "что триггер нужно заключить в кавычки!")
             else:
                 if trigger_type.lower() in ["equals", "startswith", "endswith", "contains"]:
-
                     trigger = {"id": str(triggerID + 1),
                                "triggerType": trigger_type.lower(),
                                "triggerText": trigger_text.lower(),
@@ -139,7 +138,9 @@ async def on_message(message):
                         trigger = list(filter(
                             lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
                         index = triggers.index(trigger)
-                        triggers[index][f"trigger{trigger_field.title()}"] = " ".join(trigger_value)
+                        triggers[index][f"trigger{trigger_field.title()}"] = \
+                            " ".join(trigger_value) if trigger_field == "reaction" else \
+                            " ".join(trigger_value).lower()
                         update_triggers()
                         await message.channel.send("Триггер успешно изменен")
                 except ValueError:
