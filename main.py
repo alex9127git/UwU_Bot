@@ -50,13 +50,11 @@ async def on_message(message):
         await message.channel.send(
             'pong' if random.randint(1, 5) < 5 else "в жопу себе свой ping засунь"
         )
-
-    if message.content.lower() == "пинг":
+    elif message.content.lower() == "пинг":
         await message.channel.send(
             'понг' if random.randint(1, 5) < 5 else "в жопу себе свой пинг засунь"
         )
-
-    if message.content.lower() == "help":
+    elif message.content.lower() == "help":
         await message.channel.send(
             "Команды:\n" +
             "ping или пинг - отвечает pong или понг в зависимости от языка\n" +
@@ -68,8 +66,7 @@ async def on_message(message):
             "если по ней есть продвинутая документация.\n"
             "Например: trigger add help"
         )
-
-    if message.content.lower().startswith("trigger add"):
+    elif message.content.lower().startswith("trigger add"):
         message_words = message.content.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
@@ -106,8 +103,7 @@ async def on_message(message):
                 else:
                     await message.channel.send("Ошибка при добавлении триггера: " +
                                                f"Типа {trigger_type.lower()} не существует")
-
-    if message.content.lower().startswith("trigger change"):
+    elif message.content.lower().startswith("trigger change"):
         message_words = message.content.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
@@ -146,8 +142,7 @@ async def on_message(message):
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
-
-    if message.content.lower().startswith("trigger delete"):
+    elif message.content.lower().startswith("trigger delete"):
         message_words = message.content.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
@@ -168,28 +163,44 @@ async def on_message(message):
                         trigger = list(filter(
                             lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
                         triggers.remove(trigger)
+                        triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
                         update_triggers()
+
                         await message.channel.send("Триггер успешно удален")
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
-
-    if message.content.lower() == "trigger list":
-        await message.channel.send("Все определённые триггеры находятся в этом файле. " +
-                                   "Если вы скинете это @Alex9127, он должен понять этот файл.",
-                                   file=discord.File("triggers.csv"))
-
-    for trigger in triggers:
-        if trigger["triggerType"] == "equals" and message.content.lower() == trigger["triggerText"]:
-            await message.channel.send(trigger["triggerReaction"])
-        elif trigger["triggerType"] == "startswith" and message.content.lower().startswith(trigger[
-                "triggerText"]):
-            await message.channel.send(trigger["triggerReaction"])
-        elif trigger["triggerType"] == "endswith" and message.content.lower().endswith(trigger[
-                "triggerText"]):
-            await message.channel.send(trigger["triggerReaction"])
-        elif trigger["triggerType"] == "contains" and trigger["triggerText"] in \
-                message.content.lower():
-            await message.channel.send(trigger["triggerReaction"])
+    elif message.content.lower() == "trigger list":
+        with open("triggers.txt", "w") as file:
+            for trigger in triggers:
+                file.write(
+                    f"{trigger['id'].ljust(8, ' ')}{trigger['triggerType'].ljust(12, ' ')}" +
+                    f"{trigger['triggerText']}\n"
+                )
+        await message.channel.send("Все триггеры находятся в этом файле. Реакции закрыты в " +
+                                   "целях сохранения интриги",
+                                   file=discord.File("triggers.txt"))
+    elif message.content.lower() == "trigger list advanced":
+        if str(message.channel.id) == "1033521710881841223" and \
+                str(message.author.id) in ("743132856175296565", "506753799352745984"):
+            await message.channel.send("Все определённые триггеры находятся в этом файле. " +
+                                       "(Он доступен только разработчику и админу)",
+                                       file=discord.File("triggers.csv"))
+        else:
+            await message.channel.send("Команда недоступна")
+    else:
+        for trigger in triggers:
+            if trigger["triggerType"] == "equals" and \
+                    message.content.lower() == trigger["triggerText"]:
+                await message.channel.send(trigger["triggerReaction"])
+            elif trigger["triggerType"] == "startswith" and \
+                    message.content.lower().startswith(trigger["triggerText"]):
+                await message.channel.send(trigger["triggerReaction"])
+            elif trigger["triggerType"] == "endswith" and \
+                    message.content.lower().endswith(trigger["triggerText"]):
+                await message.channel.send(trigger["triggerReaction"])
+            elif trigger["triggerType"] == "contains" and \
+                    trigger["triggerText"] in message.content.lower():
+                await message.channel.send(trigger["triggerReaction"])
 
 client.run(token)
