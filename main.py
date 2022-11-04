@@ -61,7 +61,7 @@ async def on_message(message):
             "trigger add - добавляет триггер\n" +
             "trigger change - изменяет одно из полей в триггере\n" +
             "trigger delete - удаляет триггер по ID\n" +
-            "triggers list - генерирует файл с триггерами и присылает его в канал\n"
+            "trigger list - генерирует файл с триггерами и присылает его в канал\n"
             "Напишите команду и help после неё, чтобы получить помощь по конкретной команде, " +
             "если по ней есть продвинутая документация.\n"
             "Например: trigger add help"
@@ -81,7 +81,14 @@ async def on_message(message):
                 "После создания триггера ему присваивается уникальный ID, по которому его можно " +
                 "будет изменить или удалить. ID триггеров можно посмотреть в списке триггеров.\n" +
                 "Текст триггера и ответ на триггер нужно заключать в кавычки (так как я еблан и " +
-                "не понимаю вас без кавычек)."
+                "не понимаю вас без кавычек).\n" +
+                "Если в тексте триггера написана подстрока \"@@\", то она будет заменять любое " +
+                "упоминание @ одного человека. Обратите внимание: если не заменить комбинацию @@ " +
+                "упоминанием, триггер не сработает!\n" +
+                "Сочетание @sender в тексте реакции заменяется на никнейм того, кто отправил " +
+                "сообщение, а @recipient - на того, чьё упоминание поставлено вместо подстроки " +
+                "@@ в триггере.\n" +
+                "Если триггеров на один и тот же текст несколько, я выберу любой из них на рандом."
             )
         else:
             try:
@@ -189,18 +196,36 @@ async def on_message(message):
         else:
             await message.channel.send("Команда недоступна")
     else:
+        reactions = []
+        mention = ""
         for trigger in triggers:
-            if trigger["triggerType"] == "equals" and \
-                    message.content.lower() == trigger["triggerText"]:
-                await message.channel.send(trigger["triggerReaction"])
-            elif trigger["triggerType"] == "startswith" and \
-                    message.content.lower().startswith(trigger["triggerText"]):
-                await message.channel.send(trigger["triggerReaction"])
-            elif trigger["triggerType"] == "endswith" and \
-                    message.content.lower().endswith(trigger["triggerText"]):
-                await message.channel.send(trigger["triggerReaction"])
-            elif trigger["triggerType"] == "contains" and \
-                    trigger["triggerText"] in message.content.lower():
-                await message.channel.send(trigger["triggerReaction"])
+            reaction = trigger["triggerReaction"]
+            text = trigger["triggerText"]
+            msg_text = message.content.lower().strip()
+            if "@@" in trigger["triggerText"]:
+                try:
+                    index1 = msg_text.index("<")
+                    index2 = msg_text.index(">") + 1
+                    mention = msg_text[index1:index2]
+                    msg_text = f"{msg_text[:index1]}@@{msg_text[index2:]}"
+                except ValueError:
+                    return
+            if trigger["triggerType"] == "equals" and msg_text == text:
+                reactions.append(reaction)
+            elif trigger["triggerType"] == "startswith" and msg_text.startswith(text):
+                reactions.append(reaction)
+            elif trigger["triggerType"] == "endswith" and msg_text.endswith(text):
+                reactions.append(reaction)
+            elif trigger["triggerType"] == "contains" and text in msg_text:
+                reactions.append(reaction)
+        reactions = list(map(
+            lambda x: x.replace("@sender", f"<@{message.author.id}>"), reactions
+        ))
+        if mention:
+            reactions = list(map(
+                lambda x: x.replace("@recipient", mention), reactions
+            ))
+        if reactions:
+            await message.channel.send(random.choice(reactions))
 
 client.run(token)
