@@ -209,7 +209,7 @@ async def on_message(message):
                     mention = msg_text[index1:index2]
                     msg_text = f"{msg_text[:index1]}@@{msg_text[index2:]}"
                 except ValueError:
-                    return
+                    pass
             if trigger["triggerType"] == "equals" and msg_text == text:
                 reactions.append(reaction)
             elif trigger["triggerType"] == "startswith" and msg_text.startswith(text):
