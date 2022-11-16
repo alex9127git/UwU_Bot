@@ -141,7 +141,33 @@ async def on_message(message):
     guild = client.get_guild(1030498911586091019)
     if message.author == client.user:
         return
+
     msg_text = str(message.content)
+    symbols = len(msg_text)
+    user_index = getRecordIndex(message.author.id)
+    totalSymbols = int(stats_total[user_index]["totalSymbols"])
+    stats_total[user_index]["totalSymbols"] = totalSymbols + symbols
+    totalMessages = int(stats_total[user_index]["totalMessages"])
+    stats_total[user_index]["totalMessages"] = totalMessages + 1
+    moment = datetime.now()
+    stats_total[user_index]["lastActive"] = moment
+    for record in range(len(stats_total)):
+        stats_total[record]["lastUpdate"] = moment
+        lastActive = datetime.strptime(
+            str(stats_total[record]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
+        member = members_list[getRecordIndex(stats_total[record]["uid"])]
+        if (moment - lastActive).days >= 3:
+            await member.add_roles(guild.get_role(1030600650792382527))
+            await member.remove_roles(guild.get_role(1030600493069766678))
+        if lastActive.date() != moment.date():
+            stats_total[record]["dailyMessages"] = 0
+            stats_total[record]["dailySymbols"] = 0
+    dailySymbols = int(stats_total[user_index]["dailySymbols"])
+    stats_total[user_index]["dailySymbols"] = dailySymbols + symbols
+    dailyMessages = int(stats_total[user_index]["dailyMessages"])
+    stats_total[user_index]["dailyMessages"] = dailyMessages + 1
+    update_stats()
+
     if msg_text.lower() == "ping":
         await message.channel.send(
             'pong' if random.randint(1, 5) < 5 else "в жопу себе свой ping засунь"
@@ -219,7 +245,7 @@ async def on_message(message):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
-                "Введите trigger add <ID триггера> <тип поля> <новое значение>, чтобы " +
+                "Введите trigger change <ID триггера> <тип поля> <новое значение>, чтобы " +
                 "изменить один из параметров триггера.\n"
                 "Типы полей:\n" +
                 "type - тип триггера по характеру его срабатывания\n" +
@@ -340,7 +366,10 @@ async def on_message(message):
                 if mention.startswith("<@") and mention.endswith(">"):
                     user_id = mention[2:-1]
                     index = getRecordIndex(user_id)
-                    if index != -1:
+                    member = members_list[index]
+                    if member == message.author:
+                        await message.channel.send("Нельзя награждать самого себя")
+                    elif index != -1:
                         rewards = stats_total[index]["awards"]
                         if rewards:
                             rewards += "\n"
@@ -364,7 +393,10 @@ async def on_message(message):
                 if mention.startswith("<@") and mention.endswith(">"):
                     user_id = mention[2:-1]
                     index = getRecordIndex(user_id)
-                    if index != -1:
+                    member = members_list[index]
+                    if member == message.author:
+                        await message.channel.send("Нельзя отбирать награды у самого себя")
+                    elif index != -1:
                         try:
                             rewards = stats_total[index]["awards"]
                             r = rewards.split("\n")
@@ -413,64 +445,40 @@ async def on_message(message):
             else:
                 await message.channel.send("Неправильный синтакис команды")
     else:
-        reactions = []
-        mention = ""
-        for trigger in triggers:
-            reaction = trigger["triggerReaction"]
-            text = trigger["triggerText"]
-            if "@@" in trigger["triggerText"]:
-                try:
-                    index1 = msg_text.index("<")
-                    index2 = msg_text.index(">") + 1
-                    mention = msg_text[index1:index2]
-                    msg_text = f"{msg_text[:index1]}@@{msg_text[index2:]}"
-                except ValueError:
-                    continue
-            if trigger["triggerType"] == "equals" and msg_text == text:
-                reactions.append(reaction)
-            elif trigger["triggerType"] == "startswith" and msg_text.startswith(text):
-                reactions.append(reaction)
-            elif trigger["triggerType"] == "endswith" and msg_text.endswith(text):
-                reactions.append(reaction)
-            elif trigger["triggerType"] == "contains" and text in msg_text:
-                reactions.append(reaction)
-        reactions = list(map(
-            lambda x: x.replace("@sender", f"<@{message.author.id}>"), reactions
-        ))
-        if mention:
+        try:
+            reactions = []
+            mention = ""
+            for trigger in triggers:
+                reaction = trigger["triggerReaction"]
+                text = trigger["triggerText"]
+                msg = msg_text.lower()
+                if "@@" in trigger["triggerText"]:
+                    try:
+                        index1 = msg.index("<")
+                        index2 = msg.index(">") + 1
+                        mention = msg[index1:index2]
+                        msg = f"{msg[:index1]}@@{msg[index2:]}"
+                    except ValueError:
+                        continue
+                if trigger["triggerType"] == "equals" and msg == text:
+                    reactions.append(reaction)
+                elif trigger["triggerType"] == "startswith" and msg.startswith(text):
+                    reactions.append(reaction)
+                elif trigger["triggerType"] == "endswith" and msg.endswith(text):
+                    reactions.append(reaction)
+                elif trigger["triggerType"] == "contains" and text in msg.lower():
+                    reactions.append(reaction)
             reactions = list(map(
-                lambda x: x.replace("@recipient", mention), reactions
+                lambda x: x.replace("@sender", f"<@{message.author.id}>"), reactions
             ))
-        if reactions:
-            await message.channel.send(random.choice(reactions))
-
-    symbols = len(msg_text)
-    user_index = getRecordIndex(message.author.id)
-    totalSymbols = int(stats_total[user_index]["totalSymbols"])
-    stats_total[user_index]["totalSymbols"] = totalSymbols + symbols
-    totalMessages = int(stats_total[user_index]["totalMessages"])
-    stats_total[user_index]["totalMessages"] = totalMessages + 1
-    lastDate = datetime.strptime(
-        str(stats_total[user_index]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
-    newDate = datetime.now()
-    if lastDate.date() != newDate.date():
-        stats_total[user_index]["dailyMessages"] = 0
-        stats_total[user_index]["dailySymbols"] = 0
-    dailySymbols = int(stats_total[user_index]["dailySymbols"])
-    stats_total[user_index]["dailySymbols"] = dailySymbols + symbols
-    dailyMessages = int(stats_total[user_index]["dailyMessages"])
-    stats_total[user_index]["dailyMessages"] = dailyMessages + 1
-    moment = datetime.now()
-    stats_total[user_index]["lastActive"] = moment
-    for record in range(len(stats_total)):
-        stats_total[record]["lastUpdate"] = moment
-        lastActive = datetime.strptime(
-            str(stats_total[record]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
-        member = members_list[getRecordIndex(stats_total[record]["uid"])]
-        if (moment - lastActive).days >= 3:
-            await member.add_roles(guild.get_role(1030600650792382527))
-            await member.remove_roles(guild.get_role(1030600493069766678))
-    update_stats()
+            if mention:
+                reactions = list(map(
+                    lambda x: x.replace("@recipient", mention), reactions
+                ))
+            if reactions:
+                await message.channel.send(random.choice(reactions))
+        except discord.Forbidden:
+            pass
 
 
 client.run(token)
