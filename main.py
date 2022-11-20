@@ -5,7 +5,7 @@ import discord
 import random
 from os import environ, path
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 
 load_dotenv(dotenv_path="config.env")
 token = environ["TOKEN"]
@@ -16,7 +16,6 @@ client = discord.Client(intents=intents)
 triggers = []
 triggerID = 0
 stats_total = []
-members_list = []
 
 
 def load_triggers():
@@ -120,9 +119,37 @@ async def send_stats(channel, member):
     )
 
 
+async def recount_stats(gld, message):
+    msg_text = str(message.content)
+    symbols = len(msg_text)
+    user_index = getRecordIndex(message.author.id)
+    totalSymbols = int(stats_total[user_index]["totalSymbols"])
+    stats_total[user_index]["totalSymbols"] = totalSymbols + symbols
+    totalMessages = int(stats_total[user_index]["totalMessages"])
+    stats_total[user_index]["totalMessages"] = totalMessages + 1
+    moment = datetime.now()
+    stats_total[user_index]["lastActive"] = moment
+    for record in range(len(stats_total)):
+        stats_total[record]["lastUpdate"] = moment
+        lastActive = datetime.strptime(
+            str(stats_total[record]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
+        member = members_list[record]
+        if (moment - lastActive).days >= 3:
+            if discord.utils.get(member.roles, name="Пассив") is None:
+                await member.add_roles(discord.utils.get(gld.roles, name="Пассив"))
+                await member.remove_roles(discord.utils.get(gld.roles, name="Актив"))
+        if lastActive.date() != moment.date():
+            stats_total[record]["dailyMessages"] = 0
+            stats_total[record]["dailySymbols"] = 0
+    dailySymbols = int(stats_total[user_index]["dailySymbols"])
+    stats_total[user_index]["dailySymbols"] = dailySymbols + symbols
+    dailyMessages = int(stats_total[user_index]["dailyMessages"])
+    stats_total[user_index]["dailyMessages"] = dailyMessages + 1
+
+
 @client.event
 async def on_ready():
-    global triggers, triggerID, members_list
+    global triggers, triggerID, members_list, guild
     guild = client.get_guild(1030498911586091019)
     members_list = sorted(filter(
         lambda member: member.bot is False, guild.members
@@ -137,36 +164,32 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global triggers, triggerID
-    guild = client.get_guild(1030498911586091019)
+    global triggers, triggerID, guild
     if message.author == client.user:
         return
 
     msg_text = str(message.content)
-    symbols = len(msg_text)
-    user_index = getRecordIndex(message.author.id)
-    totalSymbols = int(stats_total[user_index]["totalSymbols"])
-    stats_total[user_index]["totalSymbols"] = totalSymbols + symbols
-    totalMessages = int(stats_total[user_index]["totalMessages"])
-    stats_total[user_index]["totalMessages"] = totalMessages + 1
-    moment = datetime.now()
-    stats_total[user_index]["lastActive"] = moment
-    for record in range(len(stats_total)):
-        stats_total[record]["lastUpdate"] = moment
-        lastActive = datetime.strptime(
-            str(stats_total[record]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
-        member = members_list[getRecordIndex(stats_total[record]["uid"])]
-        if (moment - lastActive).days >= 3:
-            await member.add_roles(guild.get_role(1030600650792382527))
-            await member.remove_roles(guild.get_role(1030600493069766678))
-        if lastActive.date() != moment.date():
-            stats_total[record]["dailyMessages"] = 0
-            stats_total[record]["dailySymbols"] = 0
-    dailySymbols = int(stats_total[user_index]["dailySymbols"])
-    stats_total[user_index]["dailySymbols"] = dailySymbols + symbols
-    dailyMessages = int(stats_total[user_index]["dailyMessages"])
-    stats_total[user_index]["dailyMessages"] = dailyMessages + 1
+    await recount_stats(guild, message)
     update_stats()
+
+    private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
+    for channel in private_category.channels:
+        last_activity = channel.last_message.created_at if channel.last_message \
+            else channel.created_at
+        if (datetime.now(timezone.utc) - last_activity).days >= 1:
+            try:
+                await channel.delete()
+            except discord.Forbidden:
+                pass
+    private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
+    for channel in private_category.channels:
+        last_activity = channel.last_message.created_at if channel.last_message \
+            else channel.created_at
+        if (datetime.now(timezone.utc) - last_activity).days >= 1:
+            try:
+                await channel.delete()
+            except discord.Forbidden:
+                pass
 
     if msg_text.lower() == "ping":
         await message.channel.send(
@@ -194,9 +217,15 @@ async def on_message(message):
             "Команды статистики:\n" +
             "stats - выводит детальную статистику для вызвавшего команду человека\n" +
             "stats @пользователь - выводит детальную статистику другого человека\n" +
-            "stats all - выводит краткую статистику всех людей в сервере\n" +
+            "stats all - выводит краткую статистику всех людей в сервере\n\n" +
+            "Команды приваток:\n" +
+            "tc create <имя> - создаёт приватный текстовый канал\n" +
+            "tc delete - удаляет приватный текстовый канал\n" +
+            "tc permit <имя> - разрешает участнику доступ в канал\n" +
+            "tc kick <имя> - разрешает участнику доступ в канал\n" +
+            "Для голосовых каналов команды такие же, но вместо tc используется vc.\n\n"
             "Напишите команду и help после неё, чтобы получить помощь по конкретной команде, " +
-            "если по ней есть продвинутая документация.\n"
+            "если по ней есть продвинутая документация.\n" +
             "Например: trigger add help"
         )
     elif msg_text.lower().startswith("trigger add"):
@@ -444,6 +473,120 @@ async def on_message(message):
                     await message.channel.send("Такого пользователя не существует")
             else:
                 await message.channel.send("Неправильный синтакис команды")
+    elif msg_text.lower().startswith("tc create"):
+        try:
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
+            categories = list(map(lambda ctg: ctg.name, guild.categories))
+            if "Текст (приватки)" not in categories:
+                await guild.create_category("Текст (приватки)")
+            private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
+            tc = await guild.create_text_channel(name=name, category=private_category)
+            role1 = discord.utils.get(guild.roles, name="Жопочитатель")
+            role2 = discord.utils.get(guild.roles, name="Подсос")
+            await tc.set_permissions(role1, read_messages=False, send_messages=False)
+            await tc.set_permissions(role2, read_messages=False, send_messages=False)
+            await tc.set_permissions(message.author, read_messages=True, send_messages=True)
+            await tc.set_permissions(
+                discord.utils.get(guild.members, id=client.user.id),
+                read_messages=True, send_messages=True
+            )
+            await tc.send(
+                f"<@{message.author.id}>, вы создали приватный канал.\n" +
+                "Сюда можно пригласить людей и общаться с ними вдали от мирской суеты сервера.\n" +
+                "Когда вам надоест, напишите tc delete в этом канале, чтобы удалить его.\n" +
+                "Неиспользуемые приватные каналы будут удалены из сервера автоматически.")
+        except ValueError:
+            await message.channel.send("Неправильный синтакис команды")
+    elif msg_text.lower() == "tc delete":
+        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
+        if message.channel.category == private_category:
+            await message.channel.delete()
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower().startswith("tc permit"):
+        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
+        if message.channel.category == private_category:
+            _, _, name = msg_text.split()
+            member = discord.utils.get(guild.members, nick=name)
+            if not member:
+                member = discord.utils.get(guild.members, name=name)
+            if not member:
+                await message.channel.send("Такого пользователя не существует")
+            await message.channel.set_permissions(member, read_messages=True, send_messages=True)
+            await message.channel.send(f"<@{member.id}> теперь имеет доступ в канал")
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower().startswith("tc kick"):
+        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
+        if message.channel.category == private_category:
+            _, _, name = msg_text.split()
+            member = discord.utils.get(guild.members, nick=name)
+            if not member:
+                member = discord.utils.get(guild.members, name=name)
+            if not member:
+                await message.channel.send("Такого пользователя не существует")
+            await message.channel.set_permissions(member, read_messages=False, send_messages=False)
+            await message.channel.send(f"<@{member.id}> изгнан из канала")
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower().startswith("vc create"):
+        try:
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
+            categories = list(map(lambda ctg: ctg.name, guild.categories))
+            if "Голос (приватки)" not in categories:
+                await guild.create_category("Голос (приватки)")
+            private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
+            vc = await guild.create_voice_channel(name=name, category=private_category)
+            role1 = discord.utils.get(guild.roles, name="Жопочитатель")
+            role2 = discord.utils.get(guild.roles, name="Подсос")
+            await vc.set_permissions(role1, read_messages=False, send_messages=False)
+            await vc.set_permissions(role2, read_messages=False, send_messages=False)
+            await vc.set_permissions(message.author, read_messages=True, send_messages=True)
+            await vc.set_permissions(
+                discord.utils.get(guild.members, id=client.user.id),
+                read_messages=True, send_messages=True
+            )
+            await vc.send(
+                f"<@{message.author.id}>, вы создали приватный канал.\n" +
+                "Сюда можно пригласить людей и общаться с ними вдали от мирской суеты сервера.\n" +
+                "Когда вам надоест, напишите vc delete в этом канале, чтобы удалить его.\n" +
+                "Неиспользуемые приватные каналы будут удалены из сервера автоматически.")
+        except ValueError:
+            await message.channel.send("Неправильный синтакис команды")
+    elif msg_text.lower() == "vc delete":
+        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
+        if message.channel.category == private_category:
+            await message.channel.delete()
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower().startswith("vc permit"):
+        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
+        if message.channel.category == private_category:
+            _, _, name = msg_text.split()
+            member = discord.utils.get(guild.members, nick=name)
+            if not member:
+                member = discord.utils.get(guild.members, name=name)
+            if not member:
+                await message.channel.send("Такого пользователя не существует")
+            await message.channel.set_permissions(member, read_messages=True, send_messages=True)
+            await message.channel.send(f"<@{member.id}> теперь имеет доступ в канал")
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower().startswith("vc kick"):
+        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
+        if message.channel.category == private_category:
+            _, _, name = msg_text.split()
+            member = discord.utils.get(guild.members, nick=name)
+            if not member:
+                member = discord.utils.get(guild.members, name=name)
+            if not member:
+                await message.channel.send("Такого пользователя не существует")
+            await message.channel.set_permissions(member, read_messages=False, send_messages=False)
+            await message.channel.send(f"<@{member.id}> изгнан из канала")
+        else:
+            await message.channel.send("Этот канал не в моей компетенции")
     else:
         try:
             reactions = []
@@ -481,4 +624,5 @@ async def on_message(message):
             pass
 
 
-client.run(token)
+if __name__ == "__main__":
+    client.run(token)
