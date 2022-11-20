@@ -149,11 +149,13 @@ async def recount_stats(gld, message):
 
 @client.event
 async def on_ready():
-    global triggers, triggerID, members_list, guild
+    global triggers, triggerID, members_list, guild, text_category, voice_category
     guild = client.get_guild(1030498911586091019)
     members_list = sorted(filter(
         lambda member: member.bot is False, guild.members
     ), key=lambda member: member.id)
+    text_category = discord.utils.get(guild.categories, name="ТЕКСТ")
+    voice_category = discord.utils.get(guild.categories, name="ГОЛОСОВЫЕ")
     print("Loading triggers...")
     load_triggers()
     print("Loading stats...")
@@ -164,7 +166,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global triggers, triggerID, guild
+    global triggers, triggerID, guild, text_category, voice_category
     if message.author == client.user:
         return
 
@@ -477,11 +479,7 @@ async def on_message(message):
         try:
             _, _, *words = msg_text.split()
             name = " ".join(words)
-            categories = list(map(lambda ctg: ctg.name, guild.categories))
-            if "Текст (приватки)" not in categories:
-                await guild.create_category("Текст (приватки)")
-            private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
-            tc = await guild.create_text_channel(name=name, category=private_category)
+            tc = await guild.create_text_channel(name=f"🔐►{name}", category=text_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
             role2 = discord.utils.get(guild.roles, name="Подсос")
             await tc.set_permissions(role1, read_messages=False, send_messages=False)
@@ -499,14 +497,12 @@ async def on_message(message):
         except ValueError:
             await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower() == "tc delete":
-        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             await message.channel.delete()
         else:
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("tc permit"):
-        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             _, _, name = msg_text.split()
             member = discord.utils.get(guild.members, nick=name)
             if not member:
@@ -518,8 +514,7 @@ async def on_message(message):
         else:
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("tc kick"):
-        private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             _, _, name = msg_text.split()
             member = discord.utils.get(guild.members, nick=name)
             if not member:
@@ -534,11 +529,7 @@ async def on_message(message):
         try:
             _, _, *words = msg_text.split()
             name = " ".join(words)
-            categories = list(map(lambda ctg: ctg.name, guild.categories))
-            if "Голос (приватки)" not in categories:
-                await guild.create_category("Голос (приватки)")
-            private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
-            vc = await guild.create_voice_channel(name=name, category=private_category)
+            vc = await guild.create_voice_channel(name=f"🔐►{name}", category=voice_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
             role2 = discord.utils.get(guild.roles, name="Подсос")
             await vc.set_permissions(role1, read_messages=False, send_messages=False)
@@ -556,14 +547,12 @@ async def on_message(message):
         except ValueError:
             await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower() == "vc delete":
-        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             await message.channel.delete()
         else:
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("vc permit"):
-        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             _, _, name = msg_text.split()
             member = discord.utils.get(guild.members, nick=name)
             if not member:
@@ -575,8 +564,7 @@ async def on_message(message):
         else:
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("vc kick"):
-        private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
-        if message.channel.category == private_category:
+        if message.channel.name.startswith("🔐"):
             _, _, name = msg_text.split()
             member = discord.utils.get(guild.members, nick=name)
             if not member:
