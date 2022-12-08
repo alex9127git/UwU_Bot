@@ -68,8 +68,12 @@ def load_stats():
         records = list(map(lambda record: int(record["uid"]), stats_total))
         ids = list(map(lambda member: member.id, members_list))
         if records != ids:
-            print("Stats file is corrupted, regenerating...")
-            regenerate_stats_file()
+            deleted_ids = set(records) - set(ids)
+            for uid in deleted_ids:
+                for record in stats_total:
+                    if int(record["uid"]) == uid:
+                        stats_total.remove(record)
+        update_stats()
 
 
 def update_stats():
@@ -123,12 +127,24 @@ async def recount_stats(gld, message):
     msg_text = str(message.content)
     symbols = len(msg_text)
     user_index = getRecordIndex(message.author.id)
+    if not list(filter(lambda r: int(r["uid"]) == message.author.id, stats_total)):
+        stats_total.append({
+            "uid": str(message.author.id),
+            "totalMessages": "0",
+            "totalSymbols": "0",
+            "dailyMessages": "0",
+            "dailySymbols": "0",
+            "lastUpdate": datetime.now(),
+            "lastActive": datetime.now(),
+            "description": "",
+            "awards": ""
+        })
+        stats_total.sort(key=lambda r: int(r["uid"]))
     totalSymbols = int(stats_total[user_index]["totalSymbols"])
     stats_total[user_index]["totalSymbols"] = totalSymbols + symbols
     totalMessages = int(stats_total[user_index]["totalMessages"])
     stats_total[user_index]["totalMessages"] = totalMessages + 1
     moment = datetime.now()
-    stats_total[user_index]["lastActive"] = moment
     for record in range(len(stats_total)):
         stats_total[record]["lastUpdate"] = moment
         lastActive = datetime.strptime(
@@ -141,6 +157,7 @@ async def recount_stats(gld, message):
         if lastActive.date() != moment.date():
             stats_total[record]["dailyMessages"] = 0
             stats_total[record]["dailySymbols"] = 0
+    stats_total[user_index]["lastActive"] = moment
     dailySymbols = int(stats_total[user_index]["dailySymbols"])
     stats_total[user_index]["dailySymbols"] = dailySymbols + symbols
     dailyMessages = int(stats_total[user_index]["dailyMessages"])
@@ -166,7 +183,12 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global triggers, triggerID, guild, text_category, voice_category
+    global triggers, triggerID, guild, members_list, text_category, voice_category
+    
+    members_list = sorted(filter(
+        lambda member: member.bot is False, guild.members
+    ), key=lambda member: member.id)
+
     if message.author == client.user:
         return
 
@@ -174,24 +196,24 @@ async def on_message(message):
     await recount_stats(guild, message)
     update_stats()
 
-    private_category = discord.utils.get(guild.categories, name="Текст (приватки)")
-    for channel in private_category.channels:
-        last_activity = channel.last_message.created_at if channel.last_message \
-            else channel.created_at
-        if (datetime.now(timezone.utc) - last_activity).days >= 1:
-            try:
-                await channel.delete()
-            except discord.Forbidden:
-                pass
-    private_category = discord.utils.get(guild.categories, name="Голос (приватки)")
-    for channel in private_category.channels:
-        last_activity = channel.last_message.created_at if channel.last_message \
-            else channel.created_at
-        if (datetime.now(timezone.utc) - last_activity).days >= 1:
-            try:
-                await channel.delete()
-            except discord.Forbidden:
-                pass
+    for channel in text_category.channels:
+        if channel.name.startswith("🔐"):
+            last_activity = channel.last_message.created_at if channel.last_message \
+                else channel.created_at
+            if (datetime.now(timezone.utc) - last_activity).days >= 1:
+                try:
+                    await channel.delete()
+                except discord.Forbidden:
+                    pass
+    for channel in voice_category.channels:
+        if channel.name.startswith("🔐"):
+            last_activity = channel.last_message.created_at if channel.last_message \
+                else channel.created_at
+            if (datetime.now(timezone.utc) - last_activity).days >= 1:
+                try:
+                    await channel.delete()
+                except discord.Forbidden:
+                    pass
 
     if msg_text.lower() == "ping":
         await message.channel.send(
@@ -224,7 +246,7 @@ async def on_message(message):
             "tc create <имя> - создаёт приватный текстовый канал\n" +
             "tc delete - удаляет приватный текстовый канал\n" +
             "tc permit <имя> - разрешает участнику доступ в канал\n" +
-            "tc kick <имя> - разрешает участнику доступ в канал\n" +
+            "tc kick <имя> - запрещает участнику доступ в канал\n" +
             "Для голосовых каналов команды такие же, но вместо tc используется vc.\n\n"
             "Напишите команду и help после неё, чтобы получить помощь по конкретной команде, " +
             "если по ней есть продвинутая документация.\n" +
@@ -503,7 +525,8 @@ async def on_message(message):
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("tc permit"):
         if message.channel.name.startswith("🔐"):
-            _, _, name = msg_text.split()
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
             member = discord.utils.get(guild.members, nick=name)
             if not member:
                 member = discord.utils.get(guild.members, name=name)
@@ -515,7 +538,8 @@ async def on_message(message):
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("tc kick"):
         if message.channel.name.startswith("🔐"):
-            _, _, name = msg_text.split()
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
             member = discord.utils.get(guild.members, nick=name)
             if not member:
                 member = discord.utils.get(guild.members, name=name)
@@ -553,7 +577,8 @@ async def on_message(message):
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("vc permit"):
         if message.channel.name.startswith("🔐"):
-            _, _, name = msg_text.split()
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
             member = discord.utils.get(guild.members, nick=name)
             if not member:
                 member = discord.utils.get(guild.members, name=name)
@@ -565,7 +590,8 @@ async def on_message(message):
             await message.channel.send("Этот канал не в моей компетенции")
     elif msg_text.lower().startswith("vc kick"):
         if message.channel.name.startswith("🔐"):
-            _, _, name = msg_text.split()
+            _, _, *words = msg_text.split()
+            name = " ".join(words)
             member = discord.utils.get(guild.members, nick=name)
             if not member:
                 member = discord.utils.get(guild.members, name=name)
