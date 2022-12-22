@@ -501,7 +501,7 @@ async def on_message(message):
         try:
             _, _, *words = msg_text.split()
             name = " ".join(words)
-            tc = await guild.create_text_channel(name=f"🔐►{name}", category=text_category)
+            tc = await guild.create_text_channel(name=f"🔐┃{name}", category=text_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
             role2 = discord.utils.get(guild.roles, name="Подсос")
             await tc.set_permissions(role1, read_messages=False, send_messages=False)
@@ -519,7 +519,8 @@ async def on_message(message):
         except ValueError:
             await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower() == "tc delete":
-        if message.channel.name.startswith("🔐"):
+        if message.channel.name.startswith("🔐") and \
+                discord.utils.get(text_category.channels, name=message.channel.name):
             await message.channel.delete()
         else:
             await message.channel.send("Этот канал не в моей компетенции")
@@ -553,7 +554,7 @@ async def on_message(message):
         try:
             _, _, *words = msg_text.split()
             name = " ".join(words)
-            vc = await guild.create_voice_channel(name=f"🔐►{name}", category=voice_category)
+            vc = await guild.create_voice_channel(name=f"🔐┃{name}", category=voice_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
             role2 = discord.utils.get(guild.roles, name="Подсос")
             await vc.set_permissions(role1, read_messages=False, send_messages=False)
@@ -571,7 +572,8 @@ async def on_message(message):
         except ValueError:
             await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower() == "vc delete":
-        if message.channel.name.startswith("🔐"):
+        if message.channel.name.startswith("🔐") and \
+                discord.utils.get(voice_category.channels, name=message.channel.name):
             await message.channel.delete()
         else:
             await message.channel.send("Этот канал не в моей компетенции")
