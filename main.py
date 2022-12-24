@@ -284,9 +284,9 @@ async def on_message(message):
             else:
                 if trigger_type.lower() in ["equals", "startswith", "endswith", "contains"]:
                     trigger = {"id": str(triggerID + 1),
-                               "triggerType": trigger_type.lower(),
-                               "triggerText": trigger_text.lower().replace("\\n", "\n"),
-                               "triggerReaction": trigger_reaction.replace("\\n", "\n")}
+                               "triggerType": trigger_type.lower().strip(),
+                               "triggerText": trigger_text.lower().replace("\\n", "\n").strip(),
+                               "triggerReaction": trigger_reaction.replace("\\n", "\n").strip()}
                     triggers.append(trigger)
                     triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
                     update_triggers()
@@ -326,9 +326,9 @@ async def on_message(message):
                             lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
                         index = triggers.index(trigger)
                         triggers[index][f"trigger{trigger_field.title()}"] = \
-                            " ".join(trigger_value).replace('\\n', '\n') \
+                            " ".join(trigger_value).replace('\\n', '\n').strip() \
                             if trigger_field == "reaction" else \
-                            " ".join(trigger_value).lower().replace('\\n', '\n')
+                            " ".join(trigger_value).lower().replace('\\n', '\n').strip()
                         update_triggers()
                         await message.channel.send("Триггер успешно изменен")
                 except ValueError:
