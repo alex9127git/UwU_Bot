@@ -252,29 +252,15 @@ async def on_message(message):
             "если по ней есть продвинутая документация.\n" +
             "Например: trigger add help"
         )
+    elif msg_text.lower() == "trigger help":
+        await message.channel.send(
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1056301079387713606")
     elif msg_text.lower().startswith("trigger add"):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
-                "Введите\ntrigger add <тип триггера>\n<текст триггера>\n<ответ на триггер>\n " +
-                "чтобы добавить триггер бота. Бот будет реагировать на текст триггера и отвечать " +
-                "на него.\nТипы триггеров:\n" +
-                "equals - проверка на полное совпадение текста сообщения с триггером\n" +
-                "startswith - проверка на совпадение начала сообщения с триггером\n" +
-                "endswith - проверка на совпадение конца сообщения с триггером\n" +
-                "contains - проверка на наличие триггера в сообщении где угодно.\n" +
-                "После создания триггера ему присваивается уникальный ID, по которому его можно " +
-                "будет изменить или удалить. ID триггеров можно посмотреть в списке триггеров.\n" +
-                "Если в тексте триггера написана подстрока \"@@\", то она будет заменять любое " +
-                "упоминание @ одного человека. Обратите внимание: если не заменить комбинацию @@ " +
-                "упоминанием, триггер не сработает!\n" +
-                "Сочетание @sender в тексте реакции заменяется на никнейм того, кто отправил " +
-                "сообщение, а @recipient - на того, чьё упоминание поставлено вместо подстроки " +
-                "@@ в триггере.\n" +
-                "\\n заменяется на новую строку.\n"
-                "Если триггеров на один и тот же текст несколько, я выберу любой из них на рандом."
-            )
-        else:
+                "https://discord.com/channels/1030498911586091019/1056296643349200966/1056308977576710184")
+        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
             try:
                 _, _, trigger_type, *_ = msg_text.split()
                 _, trigger_text, trigger_reaction = msg_text.split("\n")
@@ -294,21 +280,14 @@ async def on_message(message):
                 else:
                     await message.channel.send("Ошибка при добавлении триггера: " +
                                                f"Типа {trigger_type.lower()} не существует")
+        else:
+            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
     elif msg_text.lower().startswith("trigger change"):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
-                "Введите trigger change <ID триггера> <тип поля> <новое значение>, чтобы " +
-                "изменить один из параметров триггера.\n"
-                "Типы полей:\n" +
-                "type - тип триггера по характеру его срабатывания\n" +
-                "text - текст триггера\n" +
-                "reaction - ответ на триггер\n" +
-                "ID триггера изменить невозможно, так как моему создателю легче убрать эту "
-                "функциональность, чем программировать случаи, когда ID триггеров совпадают.\n" +
-                "Значение в этой команде в кавычки не вписывайте, одно значение я всё-таки пойму."
-            )
-        else:
+                "https://discord.com/channels/1030498911586091019/1056296643349200966/1056539628779360256")
+        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
             try:
                 _, _, trigger_ID, trigger_field, *trigger_value = msg_text.split()
             except ValueError:
@@ -334,14 +313,14 @@ async def on_message(message):
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
+        else:
+            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
     elif msg_text.lower().startswith("trigger delete"):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
             await message.channel.send(
-                "Введите trigger delete <ID триггера>, чтобы удалить триггер с этим ID.\n" +
-                "Кроме ID, ничего больше писать не нужно."
-            )
-        else:
+                "https://discord.com/channels/1030498911586091019/1056296643349200966/1056560663205523527")
+        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
             try:
                 _, _, trigger_ID = msg_text.split()
             except ValueError:
@@ -362,6 +341,8 @@ async def on_message(message):
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
+        else:
+            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
     elif msg_text.lower() == "trigger list":
         with open("triggers.txt", "w") as file:
             for trigger in triggers:
@@ -372,6 +353,9 @@ async def on_message(message):
         await message.channel.send("Все триггеры находятся в этом файле. Реакции закрыты в " +
                                    "целях сохранения интриги",
                                    file=discord.File("triggers.txt"))
+    elif msg_text.lower() == "trigger list help":
+        await message.channel.send(
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1056301171951800450")
     elif msg_text.lower() == "trigger list advanced":
         if str(message.channel.id) == "1033521710881841223" and \
                 str(message.author.id) in ("743132856175296565", "506753799352745984"):
@@ -393,12 +377,16 @@ async def on_message(message):
                     await send_bio(message.channel, member)
                 else:
                     await message.channel.send("Такого пользователя не существует")
+            elif mention == "help":
+                await message.channel.send(
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058645493745451109\n" +
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058645998341193828")
             else:
                 await message.channel.send("Неправильный синтакис команды")
         elif msg_text.lower().startswith("bio edit"):
             if msg_text.lower() == "bio edit help":
                 await message.channel.send(
-                    "Введите\nbio edit\n<описание>\nчтобы изменить себе описание в биографии.")
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058646761041834064")
             else:
                 _, *desc = msg_text.split("\n")
                 if desc:
@@ -411,9 +399,7 @@ async def on_message(message):
         elif msg_text.lower().startswith("bio award"):
             if msg_text.lower() == "bio award help":
                 await message.channel.send(
-                    "Введите bio award <упоминание> <награда>, чтобы наградить пользователя.\n" +
-                    "Награды будут отображаться в биографии у пользователя."
-                )
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058647232208961586")
             else:
                 _, _, mention, *reward_name = msg_text.split()
                 if mention.startswith("<@") and mention.endswith(">"):
@@ -437,10 +423,7 @@ async def on_message(message):
         elif msg_text.lower().startswith("bio revoke"):
             if msg_text.lower() == "bio revoke help":
                 await message.channel.send(
-                    "Введите bio revoke <упоминание> <ID награды>, чтобы отозвать награду у " +
-                    "пользователя.\n" +
-                    "Награды нумеруются с нуля, сверху вниз."
-                )
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058647645796700271")
             else:
                 _, _, mention, reward_id = msg_text.split()
                 if mention.startswith("<@") and mention.endswith(">"):
@@ -495,6 +478,10 @@ async def on_message(message):
                     await send_stats(message.channel, member)
                 else:
                     await message.channel.send("Такого пользователя не существует")
+            elif mention == "help":
+                await message.channel.send(
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058658548936097832\n"
+                    "https://discord.com/channels/1030498911586091019/1056296643349200966/1058659238798442516")
             else:
                 await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower().startswith("tc create"):
@@ -503,7 +490,7 @@ async def on_message(message):
             name = " ".join(words)
             tc = await guild.create_text_channel(name=f"🔐┃{name}", category=text_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
-            role2 = discord.utils.get(guild.roles, name="Подсос")
+            role2 = discord.utils.get(guild.roles, name="Жопососатель")
             await tc.set_permissions(role1, read_messages=False, send_messages=False)
             await tc.set_permissions(role2, read_messages=False, send_messages=False)
             await tc.set_permissions(message.author, read_messages=True, send_messages=True)
@@ -556,7 +543,7 @@ async def on_message(message):
             name = " ".join(words)
             vc = await guild.create_voice_channel(name=f"🔐┃{name}", category=voice_category)
             role1 = discord.utils.get(guild.roles, name="Жопочитатель")
-            role2 = discord.utils.get(guild.roles, name="Подсос")
+            role2 = discord.utils.get(guild.roles, name="Жопососатель")
             await vc.set_permissions(role1, read_messages=False, send_messages=False)
             await vc.set_permissions(role2, read_messages=False, send_messages=False)
             await vc.set_permissions(message.author, read_messages=True, send_messages=True)
@@ -603,6 +590,13 @@ async def on_message(message):
             await message.channel.send(f"<@{member.id}> изгнан из канала")
         else:
             await message.channel.send("Этот канал не в моей компетенции")
+    elif msg_text.lower() == "tc help" or msg_text.lower() == "vc help":
+        await message.channel.send(
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1058662326695370772\n"
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1058665082004983859\n"
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1058667708528480286\n"
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1058667871758209094\n"
+            "https://discord.com/channels/1030498911586091019/1056296643349200966/1058668046987829348")
     else:
         try:
             reactions = []
