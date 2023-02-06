@@ -123,7 +123,7 @@ async def send_stats(channel, member):
     )
 
 
-async def recount_stats(gld, message):
+async def recount_stats(message):
     msg_text = str(message.content)
     symbols = len(msg_text)
     user_index = getRecordIndex(message.author.id)
@@ -149,11 +149,8 @@ async def recount_stats(gld, message):
         stats_total[record]["lastUpdate"] = moment
         lastActive = datetime.strptime(
             str(stats_total[record]["lastActive"]), "%Y-%m-%d %H:%M:%S.%f")
-        member = members_list[record]
         if (moment - lastActive).days >= 3:
-            if discord.utils.get(member.roles, name="Пассив") is None:
-                await member.add_roles(discord.utils.get(gld.roles, name="Пассив"))
-                await member.remove_roles(discord.utils.get(gld.roles, name="Актив"))
+            pass
         if lastActive.date() != moment.date():
             stats_total[record]["dailyMessages"] = 0
             stats_total[record]["dailySymbols"] = 0
@@ -184,7 +181,7 @@ async def on_ready():
 @client.event
 async def on_message(message):
     global triggers, triggerID, guild, members_list, text_category, voice_category
-    
+
     members_list = sorted(filter(
         lambda member: member.bot is False, guild.members
     ), key=lambda member: member.id)
@@ -193,7 +190,7 @@ async def on_message(message):
         return
 
     msg_text = str(message.content)
-    await recount_stats(guild, message)
+    await recount_stats(message)
     update_stats()
 
     for channel in text_category.channels:
