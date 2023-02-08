@@ -16,6 +16,12 @@ client = discord.Client(intents=intents)
 triggers = []
 triggerID = 0
 stats_total = []
+members_list = []
+
+MEMBER_ROLE_ID = 1030598327059886170
+GUEST_ROLE_ID = 1030600917839532092
+TEXT_CATEGORY_ID = 1030498911586091020
+VOICE_CATEGORY_ID = 1070717544090054776
 
 
 def load_triggers():
@@ -168,8 +174,8 @@ async def on_ready():
     members_list = sorted(filter(
         lambda member: member.bot is False, guild.members
     ), key=lambda member: member.id)
-    text_category = discord.utils.get(guild.categories, name="ТЕКСТ")
-    voice_category = discord.utils.get(guild.categories, name="ГОЛОСОВЫЕ")
+    text_category = discord.utils.get(guild.categories, id=TEXT_CATEGORY_ID)
+    voice_category = discord.utils.get(guild.categories, id=VOICE_CATEGORY_ID)
     print("Loading triggers...")
     load_triggers()
     print("Loading stats...")
@@ -257,7 +263,7 @@ async def on_message(message):
         if message_words[2] == "help":
             await message.channel.send(
                 "https://discord.com/channels/1030498911586091019/1056296643349200966/1056308977576710184")
-        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
+        elif discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
             try:
                 _, _, trigger_type, *_ = msg_text.split()
                 _, trigger_text, trigger_reaction = msg_text.split("\n")
@@ -284,7 +290,7 @@ async def on_message(message):
         if message_words[2] == "help":
             await message.channel.send(
                 "https://discord.com/channels/1030498911586091019/1056296643349200966/1056539628779360256")
-        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
+        elif discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
             try:
                 _, _, trigger_ID, trigger_field, *trigger_value = msg_text.split()
             except ValueError:
@@ -317,7 +323,7 @@ async def on_message(message):
         if message_words[2] == "help":
             await message.channel.send(
                 "https://discord.com/channels/1030498911586091019/1056296643349200966/1056560663205523527")
-        elif discord.utils.get(message.author.roles, name="Жопочитатель"):
+        elif discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
             try:
                 _, _, trigger_ID = msg_text.split()
             except ValueError:
@@ -486,8 +492,8 @@ async def on_message(message):
             _, _, *words = msg_text.split()
             name = " ".join(words)
             tc = await guild.create_text_channel(name=f"🔐┃{name}", category=text_category)
-            role1 = discord.utils.get(guild.roles, name="Жопочитатель")
-            role2 = discord.utils.get(guild.roles, name="Жопососатель")
+            role1 = discord.utils.get(guild.roles, id=MEMBER_ROLE_ID)
+            role2 = discord.utils.get(guild.roles, id=GUEST_ROLE_ID)
             await tc.set_permissions(role1, read_messages=False, send_messages=False)
             await tc.set_permissions(role2, read_messages=False, send_messages=False)
             await tc.set_permissions(message.author, read_messages=True, send_messages=True)
@@ -539,8 +545,8 @@ async def on_message(message):
             _, _, *words = msg_text.split()
             name = " ".join(words)
             vc = await guild.create_voice_channel(name=f"🔐┃{name}", category=voice_category)
-            role1 = discord.utils.get(guild.roles, name="Жопочитатель")
-            role2 = discord.utils.get(guild.roles, name="Жопососатель")
+            role1 = discord.utils.get(guild.roles, id=MEMBER_ROLE_ID)
+            role2 = discord.utils.get(guild.roles, id=GUEST_ROLE_ID)
             await vc.set_permissions(role1, read_messages=False, send_messages=False)
             await vc.set_permissions(role2, read_messages=False, send_messages=False)
             await vc.set_permissions(message.author, read_messages=True, send_messages=True)
