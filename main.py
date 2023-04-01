@@ -1,8 +1,9 @@
 import csv
 import sys
-
+import re
 import discord
 import random
+import logging
 from os import environ, path
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -18,25 +19,36 @@ triggerID = 0
 stats_total = []
 members_list = []
 
+GUILD_ID = 1030498911586091019
+GUILD_BOT_TEST_CHANNEL = 1033521710881841223
+GUILD_ADMIN = 506753799352745984
+GUILD_DEV = 743132856175296565
 MEMBER_ROLE_ID = 1030598327059886170
 GUEST_ROLE_ID = 1030600917839532092
 TEXT_CATEGORY_ID = 1030498911586091020
 VOICE_CATEGORY_ID = 1030793767738953828
 
+TRIGGERS_FILE = "triggers.csv"
+STATS_FILE = "stats_total.csv"
+TRIGGER_TYPES = ["equals", "startswith", "endswith", "contains", "regex"]
+TRIGGER_FIELDS = ["type", "text", "reaction"]
+
+logger = logging.getLogger("discord")
+
 
 def load_triggers():
     global triggers
     try:
-        with open("triggers.csv", "r", encoding="utf8") as file:
+        with open(TRIGGERS_FILE, "r", encoding="utf-8") as file:
             reader = csv.DictReader(file, delimiter=';', quotechar='"')
             triggers = list(reader)
     except FileNotFoundError:
-        print("Error: Triggers file not found")
+        logger.critical("Error: Triggers file not found")
         sys.exit(1)
 
 
 def update_triggers():
-    with open("triggers.csv", "w", newline='', encoding="utf8") as file:
+    with open(TRIGGERS_FILE, "w", newline='', encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=["id", "triggerType", "triggerText",
                                                   "triggerReaction"],
                                 delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -45,7 +57,7 @@ def update_triggers():
 
 
 def regenerate_stats_file():
-    with open("stats_total.csv", "w", newline='', encoding="utf8") as file:
+    with open(STATS_FILE, "w", newline='', encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=["uid", "totalMessages", "totalSymbols",
                                                   "dailyMessages", "dailySymbols", "lastUpdate",
                                                   "lastActive", "description", "awards"],
@@ -65,10 +77,10 @@ def regenerate_stats_file():
 
 def load_stats():
     global stats_total, members_list
-    if not path.isfile("stats_total.csv"):
-        print("Stats file doesn't exist, regenerating...")
+    if not path.isfile(STATS_FILE):
+        logger.warning("Stats file doesn't exist, regenerating...")
         regenerate_stats_file()
-    with open("stats_total.csv", "r", encoding="utf8") as file:
+    with open(STATS_FILE, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file, delimiter=';', quotechar='"')
         stats_total = list(reader)
         records = list(map(lambda record: int(record["uid"]), stats_total))
@@ -83,7 +95,7 @@ def load_stats():
 
 
 def update_stats():
-    with open("stats_total.csv", "w", newline='', encoding="utf8") as file:
+    with open(STATS_FILE, "w", newline='', encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=["uid", "totalMessages", "totalSymbols",
                                                   "dailyMessages", "dailySymbols", "lastUpdate",
                                                   "lastActive", "description", "awards"],
@@ -170,18 +182,18 @@ async def recount_stats(message):
 @client.event
 async def on_ready():
     global triggers, triggerID, members_list, guild, text_category, voice_category
-    guild = client.get_guild(1030498911586091019)
+    guild = client.get_guild(GUILD_ID)
     members_list = sorted(filter(
         lambda member: member.bot is False, guild.members
     ), key=lambda member: member.id)
     text_category = discord.utils.get(guild.categories, id=TEXT_CATEGORY_ID)
     voice_category = discord.utils.get(guild.categories, id=VOICE_CATEGORY_ID)
-    print("Loading triggers...")
+    logger.info("Loading triggers...")
     load_triggers()
-    print("Loading stats...")
+    logger.info("Loading stats...")
     load_stats()
     triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
-    print(f'Logged in: {client.user}')
+    logger.info(f'Logged in: {client.user}')
 
 
 @client.event
@@ -271,20 +283,20 @@ async def on_message(message):
                 await message.channel.send(
                     "Ошибка при добавлении триггера: Неверный синтаксис команды")
             else:
-                if trigger_type.lower() in ["equals", "startswith", "endswith", "contains"]:
-                    trigger = {"id": str(triggerID + 1),
-                               "triggerType": trigger_type.lower().strip(),
-                               "triggerText": trigger_text.lower().replace("\\n", "\n").strip(),
-                               "triggerReaction": trigger_reaction.replace("\\n", "\n").strip()}
-                    triggers.append(trigger)
-                    triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
-                    update_triggers()
-                    await message.channel.send("Триггер успешно создан")
-                else:
+                if trigger_type.lower() not in TRIGGER_TYPES:
                     await message.channel.send("Ошибка при добавлении триггера: " +
                                                f"Типа {trigger_type.lower()} не существует")
+                    return
+                trigger = {"id": str(triggerID + 1),
+                           "triggerType": trigger_type.lower().strip(),
+                           "triggerText": trigger_text.lower().replace("\\n", "\n").strip(),
+                           "triggerReaction": trigger_reaction.replace("\\n", "\n").strip()}
+                triggers.append(trigger)
+                triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
+                update_triggers()
+                await message.channel.send("Триггер успешно создан")
         else:
-            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
+            await message.channel.send("Вы не можете создавать, менять и удалять триггеры")
     elif msg_text.lower().startswith("trigger change"):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
@@ -297,27 +309,32 @@ async def on_message(message):
                 await message.channel.send("Ошибка при изменении триггера: слишком мало значений")
             else:
                 try:
+                    trigger_value = " ".join(trigger_value)
                     if int(trigger_ID) not in list(map(lambda x: int(x["id"]), triggers)):
                         await message.channel.send("Ошибка при изменении триггера: " +
                                                    f"Триггера с ID {trigger_ID} не существует")
-                    elif trigger_field.lower() not in ["type", "text", "reaction"]:
+                        return
+                    if trigger_field.lower() not in TRIGGER_FIELDS:
                         await message.channel.send("Ошибка при изменении триггера: " +
                                                    f"Поля {trigger_field.lower()} не существует")
-                    else:
-                        trigger = list(filter(
-                            lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
-                        index = triggers.index(trigger)
-                        triggers[index][f"trigger{trigger_field.title()}"] = \
-                            " ".join(trigger_value).replace('\\n', '\n').strip() \
-                            if trigger_field == "reaction" else \
-                            " ".join(trigger_value).lower().replace('\\n', '\n').strip()
-                        update_triggers()
-                        await message.channel.send("Триггер успешно изменен")
+                        return
+                    if trigger_field == "type" and trigger_value.lower() not in TRIGGER_TYPES:
+                        await message.channel.send("Ошибка при изменении триггера: " +
+                                                   f"Типа {trigger_value.lower()} не существует")
+                        return
+                    trigger = list(filter(
+                        lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
+                    index = triggers.index(trigger)
+                    triggers[index][f"trigger{trigger_field.title()}"] = \
+                        trigger_value.replace('\\n', '\n').strip() if trigger_field == "reaction" else \
+                        trigger_value.lower().replace('\\n', '\n').strip()
+                    update_triggers()
+                    await message.channel.send("Триггер успешно изменен")
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
         else:
-            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
+            await message.channel.send("Вы не можете создавать, менять и удалять триггеры")
     elif msg_text.lower().startswith("trigger delete"):
         message_words = msg_text.lower().split()
         if message_words[2] == "help":
@@ -333,19 +350,19 @@ async def on_message(message):
                     if int(trigger_ID) not in list(map(lambda x: int(x["id"]), triggers)):
                         await message.channel.send("Ошибка при изменении триггера: " +
                                                    f"Триггера с ID {trigger_ID} не существует")
-                    else:
-                        trigger = list(filter(
-                            lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
-                        triggers.remove(trigger)
-                        triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
-                        update_triggers()
+                        return
+                    trigger = list(filter(
+                        lambda x: int(x["id"]) == int(trigger_ID), triggers))[0]
+                    triggers.remove(trigger)
+                    triggerID = max(map(lambda x: int(x["id"]), triggers)) if triggers else -1
+                    update_triggers()
 
-                        await message.channel.send("Триггер успешно удален")
+                    await message.channel.send("Триггер успешно удален")
                 except ValueError:
                     await message.channel.send("Вы написали в качестве ID триггера что угодно, " +
                                                "но не ID триггера")
         else:
-            await message.channel.send("Жопососатели не могут создавать, менять и удалять триггеры")
+            await message.channel.send("Вы не можете создавать, менять и удалять триггеры")
     elif msg_text.lower() == "trigger list":
         with open("triggers.txt", "w") as file:
             for trigger in triggers:
@@ -360,11 +377,11 @@ async def on_message(message):
         await message.channel.send(
             "https://discord.com/channels/1030498911586091019/1056296643349200966/1056301171951800450")
     elif msg_text.lower() == "trigger list advanced":
-        if str(message.channel.id) == "1033521710881841223" and \
-                str(message.author.id) in ("743132856175296565", "506753799352745984"):
+        if message.channel.id == GUILD_BOT_TEST_CHANNEL and \
+                message.author.id in (GUILD_ADMIN, GUILD_DEV):
             await message.channel.send("Все определённые триггеры находятся в этом файле. " +
                                        "(Он доступен только разработчику и админу)",
-                                       file=discord.File("triggers.csv"))
+                                       file=discord.File(TRIGGERS_FILE))
         else:
             await message.channel.send("Команда недоступна")
     elif msg_text.lower().startswith("bio"):
@@ -375,11 +392,11 @@ async def on_message(message):
             if mention.startswith("<@") and mention.endswith(">"):
                 user_id = mention[2:-1]
                 index = getRecordIndex(user_id)
-                if index != -1:
-                    member = members_list[index]
-                    await send_bio(message.channel, member)
-                else:
+                if index == -1:
                     await message.channel.send("Такого пользователя не существует")
+                    return
+                member = members_list[index]
+                await send_bio(message.channel, member)
             elif mention == "help":
                 await message.channel.send(
                     "https://discord.com/channels/1030498911586091019/1056296643349200966/1058645493745451109\n" +
@@ -411,16 +428,17 @@ async def on_message(message):
                     member = members_list[index]
                     if member == message.author:
                         await message.channel.send("Нельзя награждать самого себя")
-                    elif index != -1:
-                        rewards = stats_total[index]["awards"]
-                        if rewards:
-                            rewards += "\n"
-                        reward = f':star: {" ".join(reward_name)}'
-                        rewards += reward
-                        stats_total[index]["awards"] = rewards
-                        await message.channel.send(f"<@{user_id}> получает награду:\n{reward}")
-                    else:
+                        return
+                    if index == -1:
                         await message.channel.send("Такого пользователя не существует")
+                        return
+                    rewards = stats_total[index]["awards"]
+                    if rewards:
+                        rewards += "\n"
+                    reward = f':star: {" ".join(reward_name)}'
+                    rewards += reward
+                    stats_total[index]["awards"] = rewards
+                    await message.channel.send(f"<@{user_id}> получает награду:\n{reward}")
                 else:
                     await message.channel.send("Неправильный синтакис команды")
         elif msg_text.lower().startswith("bio revoke"):
@@ -435,18 +453,19 @@ async def on_message(message):
                     member = members_list[index]
                     if member == message.author:
                         await message.channel.send("Нельзя отбирать награды у самого себя")
-                    elif index != -1:
-                        try:
-                            rewards = stats_total[index]["awards"]
-                            r = rewards.split("\n")
-                            reward = r[int(reward_id)]
-                            del r[int(reward_id)]
-                            stats_total[index]["awards"] = "\n".join(r)
-                            await message.channel.send(f"Награда {reward} отозвана у <@{user_id}>")
-                        except ValueError:
-                            await message.channel.send("Ошибка при чтении ID награды")
-                    else:
+                        return
+                    if index == -1:
                         await message.channel.send("Такого пользователя не существует")
+                        return
+                    try:
+                        rewards = stats_total[index]["awards"]
+                        r = rewards.split("\n")
+                        reward = r[int(reward_id)]
+                        del r[int(reward_id)]
+                        stats_total[index]["awards"] = "\n".join(r)
+                        await message.channel.send(f"Награда {reward} отозвана у <@{user_id}>")
+                    except ValueError:
+                        await message.channel.send("Ошибка при чтении ID награды")
                 else:
                     await message.channel.send("Неправильный синтакис команды")
     elif msg_text.lower().startswith("stats"):
@@ -616,13 +635,15 @@ async def on_message(message):
                         msg = f"{msg[:index1]}@@{msg[index2:]}"
                     except ValueError:
                         continue
-                if trigger["triggerType"] == "equals" and msg == text:
+                if trigger["triggerType"] == TRIGGER_TYPES[0] and msg == text:
                     reactions.append(reaction)
-                elif trigger["triggerType"] == "startswith" and msg.startswith(text):
+                elif trigger["triggerType"] == TRIGGER_TYPES[1] and msg.startswith(text):
                     reactions.append(reaction)
-                elif trigger["triggerType"] == "endswith" and msg.endswith(text):
+                elif trigger["triggerType"] == TRIGGER_TYPES[2] and msg.endswith(text):
                     reactions.append(reaction)
-                elif trigger["triggerType"] == "contains" and text in msg.lower():
+                elif trigger["triggerType"] == TRIGGER_TYPES[3] and text in msg:
+                    reactions.append(reaction)
+                elif trigger["triggerType"] == TRIGGER_TYPES[4] and bool(re.search(text, msg_text)):
                     reactions.append(reaction)
             reactions = list(map(
                 lambda x: x.replace("@sender", f"<@{message.author.id}>"), reactions

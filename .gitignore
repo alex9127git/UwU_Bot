@@ -1,3 +1,5 @@
+\.idea
+\venv
 triggers.csv
 triggers.txt
 config.env
