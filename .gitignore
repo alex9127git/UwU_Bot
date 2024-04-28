@@ -3,3 +3,4 @@
 triggers.csv
 triggers.txt
 config.env
+\__pycache__
