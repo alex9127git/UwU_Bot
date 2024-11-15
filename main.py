@@ -2,9 +2,10 @@ import discord
 from os import environ
 from dotenv import load_dotenv
 from client import UwuBotClient
+from const import CONFIG_FILE
 
 
-load_dotenv(dotenv_path='config.env')
+load_dotenv(dotenv_path=CONFIG_FILE)
 token = environ['TOKEN']
 
 

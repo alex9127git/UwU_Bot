@@ -6,8 +6,8 @@ import csv
 import sys
 from typing import Any
 from const import GUILD_ID, GUILD_BOT_TEST_CHANNEL, GUILD_ADMIN, GUILD_DEV, MEMBER_ROLE_ID, GUEST_ROLE_ID
-from const import TEXT_CATEGORY_ID, VOICE_CATEGORY_ID, TRIGGERS_FILE, TRIGGER_TYPES, TRIGGER_FIELDS
-from const import is_superuser, is_channel_generated, delete_channel_if_inactive
+from const import TEXT_CATEGORY_ID, VOICE_CATEGORY_ID, TRIGGERS_FILE, TRIGGER_TYPES, TRIGGER_FIELDS, WAITING_ROOM_ID
+from const import is_superuser, is_channel_generated, delete_channel_if_inactive, BOT_HELP
 
 
 class UwuBotClient(discord.Client):
@@ -77,31 +77,10 @@ class UwuBotClient(discord.Client):
             await message.channel.send(
                 'понг' if random.randint(1, 5) < 5 else 'в жопу себе свой пинг засунь'
             )
-        elif msg_text.lower() == 'help':
-            await message.channel.send(
-                'Технические команды:\n' +
-                'ping или пинг - отвечает pong или понг в зависимости от языка\n\n' +
-                'Команды триггеров:\n' +
-                'trigger add - добавляет триггер\n' +
-                'trigger change - изменяет одно из полей в триггере\n' +
-                'trigger delete - удаляет триггер по ID\n' +
-                'trigger list - генерирует файл с триггерами и присылает его в канал\n\n'
-                'Команды приваток:\n' +
-                'tc create <имя> - создаёт приватный текстовый канал\n' +
-                'tc delete - удаляет приватный текстовый канал\n' +
-                'tc permit <имя> - разрешает участнику доступ в канал\n' +
-                'tc kick <имя> - запрещает участнику доступ в канал\n' +
-                'Для голосовых каналов команды такие же, но вместо tc используется vc.\n\n'
-                'Напишите команду и help после неё, чтобы получить помощь по конкретной команде, ' +
-                'если по ней есть продвинутая документация.\n' +
-                'Например: trigger add help'
-            )
-        elif msg_text.lower() == 'trigger help':
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1056301079387713606')
-        elif msg_text.lower() == 'trigger add help':
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1056308977576710184')
+        elif 'help' in msg_text.lower():
+            if msg_text.lower() not in BOT_HELP.keys():
+                return
+            await message.channel.send(BOT_HELP[msg_text.lower()])
         elif msg_text.lower().startswith('trigger add'):
             if not discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
                 await message.channel.send('Вы не можете создавать, менять и удалять триггеры')
@@ -124,9 +103,6 @@ class UwuBotClient(discord.Client):
                 self.triggers.append(trigger)
                 self.update_triggers()
                 await message.channel.send('Триггер успешно создан')
-        elif msg_text.lower() == 'trigger change help':
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1056539628779360256')
         elif msg_text.lower().startswith('trigger change'):
             if not discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
                 await message.channel.send('Вы не можете создавать, менять и удалять триггеры')
@@ -159,11 +135,7 @@ class UwuBotClient(discord.Client):
                     update_triggers()
                     await message.channel.send('Триггер успешно изменен')
                 except ValueError:
-                    await message.channel.send('Вы написали в качестве ID триггера что угодно, ' +
-                                               'но не ID триггера')
-        elif msg_text.lower() == 'trigger delete help':
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1056560663205523527')
+                    await message.channel.send('Вы написали в качестве ID триггера что угодно, но не ID триггера')
         elif msg_text.lower().startswith('trigger delete'):
             if not discord.utils.get(message.author.roles, id=MEMBER_ROLE_ID):
                 await message.channel.send('Вы не можете создавать, менять и удалять триггеры')
@@ -183,8 +155,7 @@ class UwuBotClient(discord.Client):
                     update_triggers()
                     await message.channel.send('Триггер успешно удален')
                 except ValueError:
-                    await message.channel.send('Вы написали в качестве ID триггера что угодно, ' +
-                                               'но не ID триггера')
+                    await message.channel.send('Вы написали в качестве ID триггера что угодно, но не ID триггера')
         elif msg_text.lower() == 'trigger list':
             with open('triggers.txt', 'w', encoding='utf-8') as file:
                 for trigger in self.triggers:
@@ -195,15 +166,11 @@ class UwuBotClient(discord.Client):
             await message.channel.send('Все триггеры находятся в этом файле. Реакции закрыты в ' +
                                        'целях сохранения интриги',
                                        file=discord.File('triggers.txt'))
-        elif msg_text.lower() == 'trigger list help':
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1056301171951800450')
         elif msg_text.lower() == 'trigger list advanced':
             if message.channel.id == GUILD_BOT_TEST_CHANNEL and is_superuser(message.author.id):
                 await message.channel.send('Все определённые триггеры находятся в этом файле. ' +
                                            '(Он доступен только разработчику и админу)',
                                            file=discord.File(TRIGGERS_FILE))
-
         elif msg_text.lower() in ("tc create help", "tc delete help", "tc permit help", "tc kick help", "tc help",
                                   "vc create help", "vc delete help", "vc permit help", "vc kick help", "vc help"):
             await message.channel.send(
@@ -291,3 +258,15 @@ class UwuBotClient(discord.Client):
                     await message.channel.send(random.choice(reactions))
             except discord.Forbidden:
                 pass
+
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState,
+                                    after: discord.VoiceState):
+        waiting_room: discord.VoiceChannel = discord.utils.get(self.wguild.channels, id=WAITING_ROOM_ID)
+        for channel in self.voice_ctg.channels:
+            if is_channel_generated(channel) and len(channel.members) == 0:
+                await channel.delete()
+        if waiting_room.members:
+            channel = await self.wguild.create_voice_channel(name=f'🔐┃Приватка {member.nick}',
+                                                             category=self.voice_ctg)
+            for member in waiting_room.members:
+                await member.move_to(channel)
