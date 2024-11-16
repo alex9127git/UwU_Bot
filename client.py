@@ -171,56 +171,43 @@ class UwuBotClient(discord.Client):
                 await message.channel.send('Все определённые триггеры находятся в этом файле. ' +
                                            '(Он доступен только разработчику и админу)',
                                            file=discord.File(TRIGGERS_FILE))
-        elif msg_text.lower() in ("tc create help", "tc delete help", "tc permit help", "tc kick help", "tc help",
-                                  "vc create help", "vc delete help", "vc permit help", "vc kick help", "vc help"):
-            await message.channel.send(
-                'https://discord.com/channels/1030498911586091019/1056296643349200966/1058662326695370772')
-        elif msg_text.lower().startswith('tc create') or msg_text.lower().startswith('vc create'):
+
+        elif msg_text.lower() == 'vc private':
+            if not is_channel_generated(message.channel):
+                return
             try:
-                command_type, _, *words = msg_text.split()
-                name = ' '.join(words)
-                channel = (await self.wguild.create_text_channel(name=f'🔐┃{name}', category=self.text_ctg)
-                           if command_type.lower() == 'tc' else
-                           await self.wguild.create_voice_channel(name=f'🔐┃{name}', category=self.voice_ctg))
                 role1 = discord.utils.get(self.wguild.roles, id=MEMBER_ROLE_ID)
                 role2 = discord.utils.get(self.wguild.roles, id=GUEST_ROLE_ID)
-                await channel.set_permissions(role1, read_messages=False, send_messages=False)
-                await channel.set_permissions(role2, read_messages=False, send_messages=False)
-                await channel.set_permissions(message.author, read_messages=True, send_messages=True)
-                await channel.set_permissions(
+                await message.channel.set_permissions(role1, read_messages=False, send_messages=False)
+                await message.channel.set_permissions(role2, read_messages=False, send_messages=False)
+                await message.channel.set_permissions(message.author, read_messages=True, send_messages=True,
+                                                      manage_channels=True)
+                await message.channel.set_permissions(
                     discord.utils.get(self.wguild.members, id=self.user.id),
                     read_messages=True, send_messages=True
                 )
-                await channel.send(
-                    f'<@{message.author.id}>, вы создали приватный канал.\n' +
-                    'Сюда можно пригласить людей и общаться с ними вдали от мирской суеты сервера.\n' +
-                    f'Когда вам надоест, напишите {command_type.lower()} delete в этом канале, чтобы удалить его.\n' +
-                    'Неиспользуемые приватные каналы будут удалены из сервера автоматически.')
+                await message.channel.send(
+                    f'<@{message.author.id}>, теперь этот канал приватный.\n' +
+                    'Чтобы пригласить людей, напишите vc permit <никнейм на сервере или юзернейм дискорда>.\n' +
+                    'Канал удалится автоматически при неактивности.')
             except ValueError:
                 await message.channel.send('Неправильный синтакис команды')
-        elif msg_text.lower() == 'tc delete' or msg_text.lower() == 'vc delete':
-            command_type, *_ = msg_text.split()
-            channel_list = self.text_ctg.channels if command_type.lower() == 'tc' else self.voice_ctg.channels
-            if is_channel_generated(message.channel) and discord.utils.get(channel_list, name=message.channel.name):
-                await message.channel.delete()
-            else:
-                await message.channel.send('Этот канал не в моей компетенции')
-        elif msg_text.lower().startswith('tc permit') or msg_text.lower().startswith('vc permit') or \
-                msg_text.lower().startswith('tc kick') or msg_text.lower().startswith('vc kick'):
-            if is_channel_generated(message.channel):
-                _, action, *words = msg_text.split()
-                name = ' '.join(words)
-                member = discord.utils.get(self.wguild.members, nick=name)
-                if not member:
-                    member = discord.utils.get(self.wguild.members, name=name)
-                if not member:
-                    await message.channel.send('Такого пользователя не существует')
-                    return
-                perms = action.lower() == 'permit'
-                await message.channel.set_permissions(member, read_messages=perms, send_messages=perms)
-                await message.channel.send(f'<@{member.id}> теперь имеет доступ в канал')
-            else:
-                await message.channel.send('Этот канал не в моей компетенции')
+        elif msg_text.lower().startswith('vc permit') or msg_text.lower().startswith('vc kick'):
+            if not is_channel_generated(message.channel):
+                return
+            _, action, *words = msg_text.split()
+            name = ' '.join(words)
+            member = discord.utils.get(self.wguild.members, nick=name)
+            if not member:
+                member = discord.utils.get(self.wguild.members, name=name)
+            if not member:
+                await message.channel.send('Такого пользователя не существует')
+                return
+            perms = action.lower() == 'permit'
+            await message.channel.set_permissions(member, read_messages=perms, send_messages=perms)
+            await message.channel.send(f'<@{member.id}> теперь имеет доступ в канал'
+                                       if perms else
+                                       f'<@{member.id}> теперь изгнан из канала')
         else:
             try:
                 reactions = []
@@ -261,12 +248,13 @@ class UwuBotClient(discord.Client):
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState,
                                     after: discord.VoiceState):
-        waiting_room: discord.VoiceChannel = discord.utils.get(self.wguild.channels, id=WAITING_ROOM_ID)
+        waiting_room: discord.VoiceChannel = discord.utils.get(self.voice_ctg.channels, id=WAITING_ROOM_ID)
         for channel in self.voice_ctg.channels:
             if is_channel_generated(channel) and len(channel.members) == 0:
                 await channel.delete()
         if waiting_room.members:
             channel = await self.wguild.create_voice_channel(name=f'🔐┃Приватка {member.nick}',
                                                              category=self.voice_ctg)
-            for member in waiting_room.members:
-                await member.move_to(channel)
+            await channel.set_permissions(member, manage_channels=True)
+            for m in waiting_room.members:
+                await m.move_to(channel)
