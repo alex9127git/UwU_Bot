@@ -7,7 +7,7 @@ import sys
 from typing import Any
 from const import GUILD_ID, GUILD_BOT_TEST_CHANNEL, GUILD_ADMIN, GUILD_DEV, MEMBER_ROLE_ID, GUEST_ROLE_ID
 from const import TEXT_CATEGORY_ID, VOICE_CATEGORY_ID, TRIGGERS_FILE, TRIGGER_TYPES, TRIGGER_FIELDS, WAITING_ROOM_ID
-from const import is_superuser, is_channel_generated, delete_channel_if_inactive, BOT_HELP
+from const import is_superuser, is_channel_generated, BOT_HELP
 
 
 class UwuBotClient(discord.Client):
@@ -62,12 +62,20 @@ class UwuBotClient(discord.Client):
             if channel:
                 await channel.send(sent_msg)
 
-        for channel in self.text_ctg.channels:
-            if is_channel_generated(channel):
-                await delete_channel_if_inactive(channel)
-        for channel in self.voice_ctg.channels:
-            if is_channel_generated(channel):
-                await delete_channel_if_inactive(channel)
+        if msg_text.startswith('debug'):
+            if message.channel.id == GUILD_BOT_TEST_CHANNEL and is_superuser(message.author.id):
+                command = msg_text[6:]
+                try:
+                    await message.channel.send(eval(command))
+                except Exception as e:
+                    await message.channel.send(f'{e.__class__.__name__}: {str(e)}')
+
+        if msg_text.startswith('customdebug'):
+            if message.channel.id == GUILD_BOT_TEST_CHANNEL and is_superuser(message.author.id):
+                for channel in self.voice_ctg.channels:
+                    print(channel.id)
+                    if await is_channel_generated(channel):
+                        await channel.send('Этот канал создан мной')
 
         if msg_text.lower() == 'ping':
             await message.channel.send(
@@ -171,7 +179,6 @@ class UwuBotClient(discord.Client):
                 await message.channel.send('Все определённые триггеры находятся в этом файле. ' +
                                            '(Он доступен только разработчику и админу)',
                                            file=discord.File(TRIGGERS_FILE))
-
         elif msg_text.lower() == 'vc private':
             if not is_channel_generated(message.channel):
                 return
@@ -250,11 +257,15 @@ class UwuBotClient(discord.Client):
                                     after: discord.VoiceState):
         waiting_room: discord.VoiceChannel = discord.utils.get(self.voice_ctg.channels, id=WAITING_ROOM_ID)
         for channel in self.voice_ctg.channels:
-            if is_channel_generated(channel) and len(channel.members) == 0:
+            if await is_channel_generated(channel) and len(channel.members) == 0:
                 await channel.delete()
         if waiting_room.members:
-            channel = await self.wguild.create_voice_channel(name=f'🔐┃Приватка {member.nick}',
+            channel = await self.wguild.create_voice_channel(name=f'🛑┃Приватка {member.nick}',
                                                              category=self.voice_ctg)
             await channel.set_permissions(member, manage_channels=True)
+            await channel.send(
+                f'<@{member.id}>, вы создали приватный канал.\n' +
+                'Сюда можно пригласить людей и общаться с ними вдали от мирской суеты сервера.\n' +
+                f'Когда вам надоест, выйдите из канала, и он автоматически удалится.')
             for m in waiting_room.members:
                 await m.move_to(channel)

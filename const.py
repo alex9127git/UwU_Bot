@@ -11,6 +11,7 @@ GUEST_ROLE_ID = 1030600917839532092
 TEXT_CATEGORY_ID = 1030498911586091020
 VOICE_CATEGORY_ID = 1030793767738953828
 WAITING_ROOM_ID = 1032379895118049342
+BOT_USER = 1031095399521472522
 
 
 TRIGGERS_FILE = 'triggers.csv'
@@ -37,15 +38,6 @@ def is_superuser(user_id):
     return user_id in (GUILD_ADMIN, GUILD_DEV)
 
 
-def is_channel_generated(channel):
-    return channel.name.startswith('🔐')
-
-
-async def delete_channel_if_inactive(channel):
-    last_activity = channel.last_message.created_at if channel.last_message \
-        else channel.created_at
-    if (datetime.now(timezone.utc) - last_activity).days >= 1:
-        try:
-            await channel.delete()
-        except discord.Forbidden:
-            pass
+async def is_channel_generated(channel: discord.VoiceChannel):
+    first_message = [message async for message in channel.history(limit=10, oldest_first=True)][0]
+    return first_message and first_message.author.id == BOT_USER
